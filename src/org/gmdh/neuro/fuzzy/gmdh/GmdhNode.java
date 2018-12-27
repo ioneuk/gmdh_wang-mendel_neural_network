@@ -1,20 +1,21 @@
 package org.gmdh.neuro.fuzzy.gmdh;
 
 import lombok.Data;
-import org.gmdh.neuro.fuzzy.gmdh.config.GmdhConfig;
 import org.gmdh.neuro.fuzzy.gmdh.config.NodeConfig;
 import org.gmdh.neuro.fuzzy.gmdh.data.DataEntry;
 import org.gmdh.neuro.fuzzy.gmdh.data.NetworkData;
-import org.gmdh.neuro.fuzzy.utils.ArrayUtils;
 import org.gmdh.neuro.fuzzy.utils.GenerationUtils;
 import org.gmdh.neuro.fuzzy.utils.MathUtils;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
+import java.util.UUID;
 
 @Data
 public class GmdhNode {
 
+    private String uid;
     /**
      * non-linear weghts
      */
@@ -47,16 +48,21 @@ public class GmdhNode {
     private double mCache;
 
     public GmdhNode(NodeConfig config) {
+        this.uid = UUID.randomUUID().toString();
         this.mFunctionsPerInput = config.getMFunctionsPerInput();
         this.learningRate = config.getLearningRate();
         this.regressorsCount = config.getRegressorsCount();
-        sigma = new double[regressorsCount][config.getMFunctionsPerInput()];
-        c = new double[regressorsCount][config.getMFunctionsPerInput()];
+        sigma = new double[mFunctionsPerInput][regressorsCount];
+        c = new double[mFunctionsPerInput][regressorsCount];
         w = new double[mFunctionsPerInput];
 
-        Random random = new Random();
+        reuseC = new double[mFunctionsPerInput][regressorsCount];
+        reuseSigma = new double[mFunctionsPerInput][regressorsCount];
+        lCache = new double[mFunctionsPerInput];
+
         GenerationUtils.initWithRandom(c);
-        GenerationUtils.initWithConstant(sigma, 0.5);
+        GenerationUtils.initWithConstant(sigma, 1);
+        GenerationUtils.initWithRandom(w);
     }
 
     public double calculateOutput(double x1, double x2) {
@@ -70,8 +76,17 @@ public class GmdhNode {
         return numerator / denominator;
     }
 
-    public double calculateMse() {
-        return 0;
+    public double calculateMse(NetworkData testData) {
+        double squaredError = 0;
+
+        for (DataEntry dataEntry : testData.getDataEntries()) {
+            double x1 = dataEntry.getInputByColumnNumber(0);
+            double x2 = dataEntry.getInputByColumnNumber(1);
+            squaredError += Math.pow(calculateOutput(x1, x2) - dataEntry.getResult(), 2);
+        }
+
+        lastMse = squaredError / testData.getDataEntries().size();
+        return lastMse;
     }
 
     public void train(NetworkData trainData) {
@@ -91,20 +106,16 @@ public class GmdhNode {
                 PV[i][j] = l(j, x1, x2) / denominator;
             }
         }
+
         double[] D = new double[K];
-        for (int i = 0; i < K; ++i) {
-            D[i] = trainData.getDataEntryWithNumber(i).getResult();
+        for (int i = 0; i < K; i++) {
+            D[i] = trainData.getDataEntries().get(i).getResult();
         }
 
         double[][] pseudoPV = MathUtils.pseudoInverse(PV);
         w = MathUtils.multiply(pseudoPV, D);
 
-
-
-
         for (DataEntry data : trainData.getDataEntries()) {
-            double[][] nextC = reuseC;
-            double[][] nextSigma = reuseSigma;
             double x1 = data.getInputByColumnNumber(0);
             double x2 = data.getInputByColumnNumber(1);
             mCache = m(x1, x2);
@@ -115,21 +126,15 @@ public class GmdhNode {
             double expected = data.getResult();
             for (int i = 0; i < mFunctionsPerInput; i++) {
                 for (int j = 0; j < regressorsCount; j++) {
-                    nextC[i][j] = c[i][j] - learningRate * dE_dc(i, j, output, expected, data.getRegressors());
-                    nextSigma[i][j] = sigma[i][j] - learningRate * dE_dSigma(i, j, output, expected, data.getRegressors());
+                    c[i][j] -= learningRate * dE_dc(i, j, output, expected, data.getRegressors());
+                    sigma[i][j] -= learningRate * dE_dSigma(i, j, output, expected, data.getRegressors());
                 }
             }
-            ArrayUtils.copy(reuseC, c);
-            ArrayUtils.copy(reuseSigma, sigma);
         }
     }
 
     private double l(int row, double x1, double x2) {
-        double l = 1;
-        for (int i = 0; i < 2; i++) {
-            l = MathUtils.gauss(x1, c[row][i], sigma[row][i]) * MathUtils.gauss(x2, c[row][i], sigma[row][i]);
-        }
-        return l;
+        return MathUtils.gauss(x1, c[row][0], sigma[row][0]) * MathUtils.gauss(x2, c[row][1], sigma[row][1]);
     }
 
     private double m(double x1, double x2) {
@@ -146,18 +151,33 @@ public class GmdhNode {
 
 
     private double dE_dc(int k, int j, double output, double expected, double[] x) {
-        return dE_dZ0(output, expected) * dZ0_dZk() * dZk_dC(k, j, x);
+        return dE_dZ0(output, expected) * dZ0_dZk(k, j, x) * dZk_dC(k, j, x);
     }
 
     private double dE_dSigma(int k, int j, double output, double expected, double[] x) {
-        return dE_dZ0(output, expected) * dZ0_dZk() * dZk_dSigma(k, j ,x);
+        return dE_dZ0(output, expected) * dZ0_dZk(k, j, x) * dZk_dSigma(k, j ,x);
+    }
+
+    private double dE_dW(double output, double expected) {
+        return dE_dZ0(output, expected);
     }
 
     private double dE_dZ0(double output, double expected) {
         return output - expected;
     }
 
-    private double dZ0_dZk() {
+    private double dZ0_dZk(int k, int j, double[] x) {
+        double numerator = 0.0;
+        double denominator = 0.0;
+        for (int i = 0; i < mFunctionsPerInput; i++) {
+            double res = l(i, x[0], x[1]);
+            numerator += res * w[i];
+            denominator += res;
+        }
+        return (w[k] * denominator - numerator) / Math.pow(denominator, 2);
+    }
+
+    private double dZ0_dWk() {
         return 1;
     }
 
@@ -171,5 +191,18 @@ public class GmdhNode {
 
     private double kronekerDelta(int i, int j) {
         return i == j ? 1 : 0;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GmdhNode gmdhNode = (GmdhNode) o;
+        return Objects.equals(uid, gmdhNode.uid);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(uid);
     }
 }

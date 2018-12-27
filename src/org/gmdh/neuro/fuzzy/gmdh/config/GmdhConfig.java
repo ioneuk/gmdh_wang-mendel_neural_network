@@ -10,6 +10,6 @@ public class GmdhConfig {
 
     private double learnTestRatio;
 
-    private int bestNeuronCount;
+    private int maxNeuronCountPerLayer;
     private double learningRate;
 }
