@@ -7,9 +7,9 @@ import org.gmdh.neuro.fuzzy.gmdh.data.NetworkData;
 import org.gmdh.neuro.fuzzy.utils.GenerationUtils;
 import org.gmdh.neuro.fuzzy.utils.MathUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Random;
 import java.util.UUID;
 
 @Data
@@ -60,6 +60,9 @@ public class GmdhNode {
         reuseSigma = new double[mFunctionsPerInput][regressorsCount];
         lCache = new double[mFunctionsPerInput];
 
+        inputNodes = new ArrayList<>();
+        outputNodes = new ArrayList<>();
+
         GenerationUtils.initWithRandom(c);
         GenerationUtils.initWithConstant(sigma, 1);
         GenerationUtils.initWithRandom(w);
@@ -76,12 +79,12 @@ public class GmdhNode {
         return numerator / denominator;
     }
 
-    public double calculateMse(NetworkData testData) {
+    public double calculateMse(NetworkData testData, int firstInput, int secondInput) {
         double squaredError = 0;
 
         for (DataEntry dataEntry : testData.getDataEntries()) {
-            double x1 = dataEntry.getInputByColumnNumber(0);
-            double x2 = dataEntry.getInputByColumnNumber(1);
+            double x1 = dataEntry.getInputByColumnNumber(firstInput);
+            double x2 = dataEntry.getInputByColumnNumber(secondInput);
             squaredError += Math.pow(calculateOutput(x1, x2) - dataEntry.getResult(), 2);
         }
 
@@ -89,13 +92,13 @@ public class GmdhNode {
         return lastMse;
     }
 
-    public void train(NetworkData trainData) {
+    public void train(NetworkData trainData, int firstInput, int secondInput) {
         int K = trainData.getDataEntries().size();
         double[][] PV = new double[K][mFunctionsPerInput];
         for (int i = 0; i < K; i++) {
             DataEntry dataEntry = trainData.getDataEntryWithNumber(i);
-            double x1 = dataEntry.getInputByColumnNumber(0);
-            double x2 = dataEntry.getInputByColumnNumber(1);
+            double x1 = dataEntry.getInputByColumnNumber(firstInput);
+            double x2 = dataEntry.getInputByColumnNumber(secondInput);
 
             double denominator = 0;
             for (int j = 0; j < mFunctionsPerInput; j++) {
@@ -116,8 +119,8 @@ public class GmdhNode {
         w = MathUtils.multiply(pseudoPV, D);
 
         for (DataEntry data : trainData.getDataEntries()) {
-            double x1 = data.getInputByColumnNumber(0);
-            double x2 = data.getInputByColumnNumber(1);
+            double x1 = data.getInputByColumnNumber(firstInput);
+            double x2 = data.getInputByColumnNumber(secondInput);
             mCache = m(x1, x2);
             for (int i = 0; i < mFunctionsPerInput; i++) {
                 lCache[i] = l(i, x1, x2);

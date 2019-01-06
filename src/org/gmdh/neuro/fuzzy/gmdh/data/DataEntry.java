@@ -11,4 +11,12 @@ public class DataEntry {
     public double getInputByColumnNumber(int columnNumber) {
         return regressors[columnNumber];
     }
+
+    @Override
+    public DataEntry clone() {
+        DataEntry cloneDataEntry = new DataEntry();
+        cloneDataEntry.setResult(this.result);
+        cloneDataEntry.setRegressors(this.regressors);
+        return cloneDataEntry;
+    }
 }

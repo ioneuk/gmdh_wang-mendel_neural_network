@@ -6,10 +6,8 @@ import org.gmdh.neuro.fuzzy.gmdh.data.DataEntry;
 import org.gmdh.neuro.fuzzy.gmdh.data.NetworkData;
 import org.gmdh.neuro.fuzzy.utils.NormalizationUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class GmdhNeuroFuzzyNetwork {
 
@@ -30,7 +28,8 @@ public class GmdhNeuroFuzzyNetwork {
         layers.add(firstLayer);
         firstLayer.train(trainData);
         GmdhNode currentNodeWithLowestMse = firstLayer.findNeuronWithLowestMse(testData);
-        double currentMse = currentNodeWithLowestMse.calculateMse(testData);
+        //double currentMse = currentNodeWithLowestMse.calculateMse(testData);
+        double currentMse = currentNodeWithLowestMse.getLastMse();
 
         trainOutputDataStorage.put(firstLayer, composeOutputData(firstLayer, trainData));
         testOutputDataStorage.put(firstLayer, composeOutputData(firstLayer, testData));
@@ -47,16 +46,50 @@ public class GmdhNeuroFuzzyNetwork {
             currentTrainData = trainOutputDataStorage.get(prevLayer);
             currentTestData = testOutputDataStorage.get(prevLayer);
             currentLayer = createSequentialNeuronLayer(prevLayer, currentTrainData);
+            layers.add(currentLayer);
 
             currentLayer.train(currentTrainData);
             currentNodeWithLowestMse = currentLayer.findNeuronWithLowestMse(currentTestData);
             trainOutputDataStorage.put(currentLayer, composeOutputData(currentLayer, currentTrainData));
             testOutputDataStorage.put(currentLayer, composeOutputData(currentLayer, currentTestData));
 
-            currentMse = currentNodeWithLowestMse.calculateMse(currentTestData);
+            currentMse = currentNodeWithLowestMse.getLastMse();
+            prevLayer.setNextLayer(currentLayer);
             prevLayer = currentLayer;
         } while (currentMse < prevMse);
-        System.out.println("WOW WOW WOW");
+        layers.remove(layers.size()-1);
+        setupOptimalNetworkStructure(bestNode);
+        System.out.println("HO HO HO!!!");
+    }
+
+    public double[] getPredictedValues(NetworkData testData) {
+        List<DataEntry> dataEntries = testData.getDataEntries();
+        double[] result = new double[dataEntries.size()];
+
+        for (int i = 0; i < dataEntries.size(); i++) {
+            DataEntry dataEntry = dataEntries.get(i);
+            DataEntry modifiedDataEntry = dataEntry.clone();
+            GmdhLayer currentLayer = layers.get(0);
+            double[] currentOutput;
+            do {
+                currentOutput = currentLayer.calculateOutput(modifiedDataEntry);
+                modifiedDataEntry.setRegressors(currentOutput);
+                currentLayer = currentLayer.getNextLayer();
+            } while (currentLayer.getNextLayer() != null);
+            result[i] = currentOutput[0];
+        }
+        return result;
+    }
+
+    private void setupOptimalNetworkStructure(GmdhNode targetNode) {
+        GmdhLayer lastLayer = layers.get(layers.size() - 1);
+        lastLayer.setWorkingNodes(Arrays.asList(targetNode));
+        List<GmdhNode> currentNodes = Arrays.asList(targetNode);
+        for(int i = layers.size()-2 ; i >= 0; --i) {
+            GmdhLayer currentLayer = layers.get(i);
+            currentNodes = currentNodes.stream().flatMap(node -> node.getInputNodes().stream()).distinct().collect(Collectors.toList());
+            currentLayer.setWorkingNodes(currentNodes);
+        }
     }
 
     private GmdhLayer createFirstNeuronLayer(NetworkData trainData) {
@@ -71,6 +104,14 @@ public class GmdhNeuroFuzzyNetwork {
         GmdhLayer gmdhLayer = new GmdhLayer(baseLayer.getNeuronCount(), baseLayer, gmdhConfig);
         Map<GmdhNode, Pair<Integer, Integer>> gmdhNodePairMap = composeAssociationBetweenInputsAndNodes(gmdhLayer, trainData.getDataEntries().get(0).getRegressors().length);
 
+        for (GmdhNode node : gmdhNodePairMap.keySet()) {
+            Pair<Integer,Integer> inputNodes = gmdhNodePairMap.get(node);
+            GmdhNode firstNode = baseLayer.getNodes().get(inputNodes.getFirst());
+            GmdhNode secondNode = baseLayer.getNodes().get(inputNodes.getSecond());
+            node.setInputNodes(Arrays.asList(firstNode, secondNode));
+            firstNode.getOutputNodes().add(node);
+        }
+
         gmdhLayer.setInputValuesAssociation(gmdhNodePairMap);
         return gmdhLayer;
     }
@@ -83,7 +124,8 @@ public class GmdhNeuroFuzzyNetwork {
         for(int i=0; i < regressorsCount - 1; ++i) {
             for (int j = i + 1; j < regressorsCount; ++j) {
                 if(counter < nodes.size()) {
-                    inputValueAssociation.put(nodes.get(counter), new Pair<>(i, j));
+                    GmdhNode node = nodes.get(counter);
+                    inputValueAssociation.put(node, new Pair<>(i, j));
                     counter++;
                 }
             }
@@ -120,24 +162,4 @@ public class GmdhNeuroFuzzyNetwork {
     private int calculateTotalOutputsCount(int nodesCount) {
         return nodesCount < gmdhConfig.getMaxNeuronCountPerLayer() ? nodesCount : gmdhConfig.getMaxNeuronCountPerLayer();
     }
-
-    /*private NetworkData composeOutputTestData(GmdhLayer baseLayer, NetworkData testData) {
-        NetworkData networkData = new NetworkData();
-        List<GmdhNode> nodes = baseLayer.getNodes();
-        for (DataEntry dataEntry : testData.getDataEntries()) {
-            DataEntry newDataEntry = new DataEntry();
-            double[] inputs = new double[baseLayer.getNodes().size()];
-            for (int i = 0; i < nodes.size(); ++i) {
-                Pair<Integer, Integer> regressorIds = baseLayer.getInputValuesAssociation().get(nodes.get(i));
-                double firstInput = dataEntry.getInputByColumnNumber(regressorIds.getFirst());
-                double secondInput = dataEntry.getInputByColumnNumber(regressorIds.getSecond());
-                double output = nodes.get(i).calculateOutput(firstInput, secondInput);
-                inputs[1] = output;
-            }
-            newDataEntry.setRegressors(inputs);
-            newDataEntry.setResult(dataEntry.getResult());
-            networkData.getDataEntries().add(newDataEntry);
-        }
-        return networkData;
-    }*/
 }

@@ -17,7 +17,7 @@ public class NormalizationUtils {
     private static void normalizeAttribute(List<DataEntry> dataEntries, int attributeIndex) {
         double max = 0;
         for (DataEntry dataEntry : dataEntries) {
-            max = Math.max(max, dataEntry.getRegressors()[attributeIndex]);
+            max = Math.max(Math.abs(max), Math.abs(dataEntry.getRegressors()[attributeIndex]));
         }
 
         if (max == 0) return;
