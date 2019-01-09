@@ -2,6 +2,9 @@ package org.gmdh.neuro.fuzzy.utils;
 
 import org.ejml.simple.SimpleMatrix;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
 public class MathUtils {
 
     public static double gauss(double x, double c, double sigma) {
@@ -37,5 +40,13 @@ public class MathUtils {
             }
         }
         return result;
+    }
+
+    public static double round(double value, int places) {
+        if (places < 0) throw new IllegalArgumentException();
+
+        BigDecimal bd = new BigDecimal(Double.toString(value));
+        bd = bd.setScale(places, RoundingMode.HALF_UP);
+        return bd.doubleValue();
     }
 }

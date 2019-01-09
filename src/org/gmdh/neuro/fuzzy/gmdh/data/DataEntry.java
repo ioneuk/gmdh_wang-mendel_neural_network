@@ -2,6 +2,8 @@ package org.gmdh.neuro.fuzzy.gmdh.data;
 
 import lombok.Data;
 
+import java.util.Arrays;
+
 @Data
 public class DataEntry {
 
@@ -18,5 +20,9 @@ public class DataEntry {
         cloneDataEntry.setResult(this.result);
         cloneDataEntry.setRegressors(this.regressors);
         return cloneDataEntry;
+    }
+
+    public double getMaxInput() {
+        return Arrays.stream(regressors).max().getAsDouble();
     }
 }

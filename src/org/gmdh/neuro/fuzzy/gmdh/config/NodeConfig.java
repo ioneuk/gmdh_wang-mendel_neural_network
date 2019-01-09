@@ -8,4 +8,5 @@ public class NodeConfig {
     private int regressorsCount;
     private int mFunctionsPerInput;
     private double learningRate;
+    private double slope;
 }

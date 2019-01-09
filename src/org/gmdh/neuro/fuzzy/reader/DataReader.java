@@ -4,14 +4,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.hssf.usermodel.HSSFRow;
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.openxml4j.opc.OPCPackage;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.xssf.usermodel.XSSFRow;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.gmdh.neuro.fuzzy.gmdh.data.DataEntry;
 import org.gmdh.neuro.fuzzy.gmdh.data.DataSet;
 import org.gmdh.neuro.fuzzy.gmdh.data.NetworkData;
-import org.gmdh.neuro.fuzzy.utils.NormalizationUtils;
 
 import java.io.*;
 import java.util.*;
@@ -75,9 +70,6 @@ public class DataReader {
         Collections.shuffle(testEntries);
         trainData.setDataEntries(trainEntries);
         testData.setDataEntries(testEntries);
-
-        NormalizationUtils.normalizeDataSet(trainData);
-        NormalizationUtils.normalizeDataSet(testData);
 
         DataSet dataSet = new DataSet();
         dataSet.setTrainData(trainData);

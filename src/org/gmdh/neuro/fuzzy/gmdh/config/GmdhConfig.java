@@ -12,4 +12,5 @@ public class GmdhConfig {
 
     private int maxNeuronCountPerLayer;
     private double learningRate;
+    private double slope;
 }

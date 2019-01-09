@@ -7,4 +7,8 @@ public class DataSet {
 
     private NetworkData trainData;
     private NetworkData testData;
+
+    public double getMaxOutput() {
+        return Math.max(trainData.getMaxOutput(), testData.getMaxOutput());
+    }
 }

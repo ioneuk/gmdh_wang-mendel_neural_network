@@ -43,7 +43,12 @@ public class GmdhLayer {
     public void train(NetworkData trainData) {
         for (GmdhNode node : nodes) {
             Pair<Integer, Integer> inputs = inputValuesAssociation.get(node);
-            node.train(trainData, inputs.getFirst(), inputs.getSecond());
+            try {
+                node.train(trainData, inputs.getFirst(), inputs.getSecond());
+            }
+            catch (IllegalArgumentException ex) {
+                node.setLastMse(Double.MAX_VALUE);
+            }
         }
     }
 
@@ -69,7 +74,8 @@ public class GmdhLayer {
         GmdhNode gmdhNodeWithLowestMse = nodes.get(0);
         double lowestMse = Double.MAX_VALUE;
         for (GmdhNode node : nodes) {
-            Pair<Integer, Integer> inputs = inputValuesAssociation.get(gmdhNodeWithLowestMse);
+            //Pair<Integer, Integer> inputs = inputValuesAssociation.get(gmdhNodeWithLowestMse);
+            Pair<Integer, Integer> inputs = inputValuesAssociation.get(node);
             double currentMse = node.calculateMse(testData, inputs.getFirst(), inputs.getSecond());
             if(currentMse < lowestMse) {
                 lowestMse = currentMse;
@@ -112,6 +118,7 @@ public class GmdhLayer {
         nodeConfig.setLearningRate(gmdhConfig.getLearningRate());
         nodeConfig.setMFunctionsPerInput(gmdhConfig.getMFunctionsPerInput());
         nodeConfig.setRegressorsCount(2);
+        nodeConfig.setSlope(gmdhConfig.getSlope());
         return nodeConfig;
     }
 }

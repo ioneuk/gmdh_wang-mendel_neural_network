@@ -6,6 +6,7 @@ import org.gmdh.neuro.fuzzy.gmdh.data.DataEntry;
 import org.gmdh.neuro.fuzzy.gmdh.data.NetworkData;
 import org.gmdh.neuro.fuzzy.utils.GenerationUtils;
 import org.gmdh.neuro.fuzzy.utils.MathUtils;
+import org.gmdh.neuro.fuzzy.utils.NormalizationUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,8 +15,10 @@ import java.util.UUID;
 
 @Data
 public class GmdhNode {
+    private static final int iterationCount = 50;
 
     private String uid;
+    private double slope;
     /**
      * non-linear weghts
      */
@@ -49,6 +52,7 @@ public class GmdhNode {
 
     public GmdhNode(NodeConfig config) {
         this.uid = UUID.randomUUID().toString();
+        this.slope = config.getSlope();
         this.mFunctionsPerInput = config.getMFunctionsPerInput();
         this.learningRate = config.getLearningRate();
         this.regressorsCount = config.getRegressorsCount();
@@ -88,14 +92,14 @@ public class GmdhNode {
             squaredError += Math.pow(calculateOutput(x1, x2) - dataEntry.getResult(), 2);
         }
 
-        lastMse = squaredError / testData.getDataEntries().size();
+        lastMse = squaredError / 2;
         return lastMse;
     }
 
     public void train(NetworkData trainData, int firstInput, int secondInput) {
-        int K = trainData.getDataEntries().size();
+        int K = trainData.getDataEntriesCount();
         double[][] PV = new double[K][mFunctionsPerInput];
-        for (int i = 0; i < K; i++) {
+        /*for (int i = 0; i < K; i++) {
             DataEntry dataEntry = trainData.getDataEntryWithNumber(i);
             double x1 = dataEntry.getInputByColumnNumber(firstInput);
             double x2 = dataEntry.getInputByColumnNumber(secondInput);
@@ -116,28 +120,66 @@ public class GmdhNode {
         }
 
         double[][] pseudoPV = MathUtils.pseudoInverse(PV);
-        w = MathUtils.multiply(pseudoPV, D);
+        w = MathUtils.multiply(pseudoPV, D);*/
 
-        for (DataEntry data : trainData.getDataEntries()) {
-            double x1 = data.getInputByColumnNumber(firstInput);
-            double x2 = data.getInputByColumnNumber(secondInput);
-            mCache = m(x1, x2);
-            for (int i = 0; i < mFunctionsPerInput; i++) {
-                lCache[i] = l(i, x1, x2);
+        for(int b = 0; b < iterationCount; ++b) {
+
+
+            for (int i = 0; i < K; i++) {
+                DataEntry dataEntry = trainData.getDataEntryWithNumber(i);
+                double x1 = dataEntry.getInputByColumnNumber(firstInput);
+                double x2 = dataEntry.getInputByColumnNumber(secondInput);
+
+                double denominator = 0;
+                for (int j = 0; j < mFunctionsPerInput; j++) {
+                    //denominator += l(j, x);
+                    denominator += l(j, x1, x2);
+                }
+                for (int j = 0; j < mFunctionsPerInput; j++) {
+                    PV[i][j] = l(j, x1, x2) / denominator;
+                }
             }
-            double output = calculateOutput(x1, x2);
-            double expected = data.getResult();
-            for (int i = 0; i < mFunctionsPerInput; i++) {
-                for (int j = 0; j < regressorsCount; j++) {
-                    c[i][j] -= learningRate * dE_dc(i, j, output, expected, data.getRegressors());
-                    sigma[i][j] -= learningRate * dE_dSigma(i, j, output, expected, data.getRegressors());
+
+            double[] D = new double[K];
+            for (int i = 0; i < K; i++) {
+                D[i] = trainData.getDataEntries().get(i).getResult();
+            }
+
+            double[][] pseudoPV = MathUtils.pseudoInverse(PV);
+            w = MathUtils.multiply(pseudoPV, D);
+
+
+            double[][] accC = new double[mFunctionsPerInput][regressorsCount];
+            double[][] accSigma = new double[mFunctionsPerInput][regressorsCount];
+            for (DataEntry data : trainData.getDataEntries()) {
+                double x1 = data.getInputByColumnNumber(firstInput);
+                double x2 = data.getInputByColumnNumber(secondInput);
+                mCache = m(x1, x2);
+                for (int i = 0; i < mFunctionsPerInput; i++) {
+                    lCache[i] = l(i, x1, x2);
+                }
+                double output = calculateOutput(x1, x2);
+                double expected = data.getResult();
+                for (int i = 0; i < mFunctionsPerInput; i++) {
+                    for (int j = 0; j < regressorsCount; j++) {
+                        accC[i][j] += dE_dc(i, j, output, expected, new double[]{x1, x2});
+                        accSigma[i][j] += dE_dSigma(i, j, output, expected, new double[]{x1, x2});
+                    }
+                }
+            }
+
+            for(int i = 0; i < mFunctionsPerInput; ++i) {
+                for(int j = 0; j < regressorsCount; ++j) {
+                    c[i][j] -= learningRate * accC[i][j] / K;
+                    sigma[i][j] -= learningRate * accSigma[i][j] / K;
                 }
             }
         }
     }
 
     private double l(int row, double x1, double x2) {
-        return MathUtils.gauss(x1, c[row][0], sigma[row][0]) * MathUtils.gauss(x2, c[row][1], sigma[row][1]);
+        double result = MathUtils.gauss(x1, c[row][0], sigma[row][0]) * MathUtils.gauss(x2, c[row][1], sigma[row][1]);
+        return result;
     }
 
     private double m(double x1, double x2) {
@@ -154,11 +196,11 @@ public class GmdhNode {
 
 
     private double dE_dc(int k, int j, double output, double expected, double[] x) {
-        return dE_dZ0(output, expected) * dZ0_dZk(k, j, x) * dZk_dC(k, j, x);
+        return dE_dZ0(output, expected) * dZ0_dZk(k, x) * dZk_dC(k, j, x) * d_Sigmoid(output);
     }
 
     private double dE_dSigma(int k, int j, double output, double expected, double[] x) {
-        return dE_dZ0(output, expected) * dZ0_dZk(k, j, x) * dZk_dSigma(k, j ,x);
+        return dE_dZ0(output, expected) * dZ0_dZk(k, x) * dZk_dSigma(k, j ,x) * d_Sigmoid(output);
     }
 
     private double dE_dW(double output, double expected) {
@@ -169,7 +211,11 @@ public class GmdhNode {
         return output - expected;
     }
 
-    private double dZ0_dZk(int k, int j, double[] x) {
+    private double d_Sigmoid(double x) {
+        return NormalizationUtils.sigmoid(x, slope) * (1 - NormalizationUtils.sigmoid(x, slope)) * slope;
+    }
+
+    private double dZ0_dZk(int k, double[] x) {
         double numerator = 0.0;
         double denominator = 0.0;
         for (int i = 0; i < mFunctionsPerInput; i++) {
@@ -177,7 +223,7 @@ public class GmdhNode {
             numerator += res * w[i];
             denominator += res;
         }
-        return (w[k] * denominator - numerator) / Math.pow(denominator, 2);
+        return l(k, x[0], x[1]) * (w[k] * denominator - numerator) / Math.pow(denominator, 2);
     }
 
     private double dZ0_dWk() {
@@ -185,7 +231,7 @@ public class GmdhNode {
     }
 
     private double dZk_dC(int k, int j, double[] x) {
-        return (x[j] - c[k][j]) / (2 * Math.pow(sigma[k][j], 2));
+        return (x[j] - c[k][j]) / (Math.pow(sigma[k][j], 2));
     }
 
     private double dZk_dSigma(int k, int j, double[] x) {

@@ -30,7 +30,7 @@
             <content>
               <AnchorPane maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
                      <children>
-                        <Button id="train" layoutX="118.0" layoutY="236.0" mnemonicParsing="false" onAction="#onTrainAction" prefHeight="25.0" prefWidth="167.0" text="train" />
+                        <Button id="train" layoutX="118.0" layoutY="236.0" mnemonicParsing="false" onAction="#onTrainAction" prefHeight="25.0" prefWidth="141.0" text="train" />
                         <Slider id="learnTestRatio" fx:id="learnTestRatio" blockIncrement="2.0" depthTest="ENABLE" layoutX="27.0" layoutY="21.0" showTickLabels="true" showTickMarks="true" value="75.0" />
                         <Label layoutX="191.0" layoutY="20.0" prefHeight="17.0" prefWidth="85.0" text="learn/test ratio" />
                          <Spinner id="mFunctionPerInput" fx:id="mFunctionsPerInput" editable="true" layoutX="28.0" layoutY="57.0" prefHeight="25.0" prefWidth="138.0">
@@ -43,6 +43,7 @@
                         <Button layoutX="28.0" layoutY="236.0" mnemonicParsing="false" onAction="#onLoadDataAction" prefHeight="25.0" prefWidth="69.0" text="Load data" />
                         <Spinner id="learningRate" fx:id="inputNumber" editable="true" layoutX="27.0" layoutY="184.0" prefHeight="25.0" prefWidth="138.0" />
                         <Label layoutX="190.0" layoutY="188.0" text="features number" />
+                        <Button disable="true" layoutX="28.0" layoutY="287.0" mnemonicParsing="false" onAction="#onExportAction" prefHeight="25.0" prefWidth="232.0" text="Export to xls" visible="false" fx:id="xlsExport" />
                      </children>
                   </AnchorPane>
             </content>
@@ -87,6 +88,8 @@
                       <TableColumn fx:id="predictedValueTab" prefWidth="75.0" text="Predicted" />
                       <TableColumn fx:id="deltaTab" prefWidth="75.0" text="Delta" />
                       <TableColumn fx:id="squaredDeltaTab" prefWidth="75.0" text="Delta^2" />
+                      <TableColumn fx:id="mapeDeltaTab" prefWidth="75.0" text="MAPE" />
+                      <TableColumn fx:id="rmseDeltaTab" prefWidth="75.0" text="RMSE" />
                     </columns>
                   </TableView>
                </content>

@@ -4,8 +4,11 @@ import org.apache.commons.math3.util.Pair;
 import org.gmdh.neuro.fuzzy.gmdh.config.GmdhConfig;
 import org.gmdh.neuro.fuzzy.gmdh.data.DataEntry;
 import org.gmdh.neuro.fuzzy.gmdh.data.NetworkData;
+import org.gmdh.neuro.fuzzy.utils.MathUtils;
 import org.gmdh.neuro.fuzzy.utils.NormalizationUtils;
 
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,17 +31,16 @@ public class GmdhNeuroFuzzyNetwork {
         layers.add(firstLayer);
         firstLayer.train(trainData);
         GmdhNode currentNodeWithLowestMse = firstLayer.findNeuronWithLowestMse(testData);
-        //double currentMse = currentNodeWithLowestMse.calculateMse(testData);
         double currentMse = currentNodeWithLowestMse.getLastMse();
 
         trainOutputDataStorage.put(firstLayer, composeOutputData(firstLayer, trainData));
         testOutputDataStorage.put(firstLayer, composeOutputData(firstLayer, testData));
 
         GmdhLayer prevLayer = firstLayer;
-        GmdhNode bestNode;
         double prevMse;
         NetworkData currentTrainData;
         NetworkData currentTestData;
+        GmdhNode bestNode;
         GmdhLayer currentLayer;
         do {
             prevMse = currentMse;
@@ -59,10 +61,9 @@ public class GmdhNeuroFuzzyNetwork {
         } while (currentMse < prevMse);
         layers.remove(layers.size()-1);
         setupOptimalNetworkStructure(bestNode);
-        System.out.println("HO HO HO!!!");
     }
 
-    public double[] getPredictedValues(NetworkData testData) {
+    public double[] getPredictedValues(NetworkData testData, double slope) {
         List<DataEntry> dataEntries = testData.getDataEntries();
         double[] result = new double[dataEntries.size()];
 
@@ -73,12 +74,14 @@ public class GmdhNeuroFuzzyNetwork {
             double[] currentOutput;
             do {
                 currentOutput = currentLayer.calculateOutput(modifiedDataEntry);
-                modifiedDataEntry.setRegressors(currentOutput);
+                double[] normalizedOutput = NormalizationUtils.applyActivationFunction(currentOutput, slope);
+                modifiedDataEntry.setRegressors(normalizedOutput);
                 currentLayer = currentLayer.getNextLayer();
             } while (currentLayer.getNextLayer() != null);
             result[i] = currentOutput[0];
         }
-        return result;
+
+        return Arrays.stream(result).map(element -> MathUtils.round(element, 4)).toArray();
     }
 
     private void setupOptimalNetworkStructure(GmdhNode targetNode) {
@@ -102,7 +105,7 @@ public class GmdhNeuroFuzzyNetwork {
 
     private GmdhLayer createSequentialNeuronLayer(GmdhLayer baseLayer, NetworkData trainData) {
         GmdhLayer gmdhLayer = new GmdhLayer(baseLayer.getNeuronCount(), baseLayer, gmdhConfig);
-        Map<GmdhNode, Pair<Integer, Integer>> gmdhNodePairMap = composeAssociationBetweenInputsAndNodes(gmdhLayer, trainData.getDataEntries().get(0).getRegressors().length);
+        Map<GmdhNode, Pair<Integer, Integer>> gmdhNodePairMap = composeAssociationBetweenInputsAndNodes(gmdhLayer, trainData.getRegressorsCount());
 
         for (GmdhNode node : gmdhNodePairMap.keySet()) {
             Pair<Integer,Integer> inputNodes = gmdhNodePairMap.get(node);
@@ -155,7 +158,7 @@ public class GmdhNeuroFuzzyNetwork {
             newDataEntry.setResult(dataEntry.getResult());
             networkData.getDataEntries().add(newDataEntry);
         }
-        NormalizationUtils.normalizeDataSet(networkData);
+        NormalizationUtils.applyActivationFunction(networkData, gmdhConfig.getSlope());
         return networkData;
     }
 
